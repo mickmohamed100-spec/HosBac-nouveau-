@@ -6,13 +6,13 @@
     <title>HosBac - Plateforme éducative collaborative</title>
     
     <!-- Balises PWA -->
-    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#1e3a8a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="HosBac">
-    <link rel="apple-touch-icon" href="icon-192x192.png">
+    <link rel="manifest" href="manifest.json">
     <link rel="icon" type="image/png" href="icon-192x192.png">
+    <link rel="apple-touch-icon" href="icon-192x192.png">
     
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
@@ -2065,6 +2065,19 @@
         const urlParams = new URLSearchParams(window.location.search);
         const sharedExamId = urlParams.get('exam');
 
+        // Service Worker pour PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(function(registration) {
+                        console.log('Service Worker enregistré avec succès:', registration);
+                    })
+                    .catch(function(error) {
+                        console.log('Échec de l\'enregistrement du Service Worker:', error);
+                    });
+            });
+        }
+
         // Initialisation de l'application
         document.addEventListener('DOMContentLoaded', function() {
             // Afficher l'écran de démarrage pendant 4 secondes
@@ -2985,8 +2998,8 @@
                 </div>
                 <div class="exam-actions">
                     <button class="exam-btn view-btn" data-exam-id="${examId}" data-type="sujet">Voir l'épreuve</button>
-                    <button class="exam-btn download-btn" data-exam-id="${examId}" data-type="sujet">Télécharger</button>
-                    ${exam.fichier_corrige ? `<button class="exam-btn download-btn" data-exam-id="${examId}" data-type="corrige">Corrigé (2 points)</button>` : ''}
+                    <a href="${exam.fichier_sujet}" download="${exam.nom_epreuve}_sujet.pdf" class="exam-btn download-btn">Télécharger</a>
+                    ${exam.fichier_corrige ? `<a href="${exam.fichier_corrige}" download="${exam.nom_epreuve}_corrige.pdf" class="exam-btn download-btn">Corrigé (2 points)</a>` : ''}
                     <button class="exam-btn transfer-btn" data-exam-id="${examId}">Transférer</button>
                     <button class="exam-btn favorite-btn ${isFavorite ? 'active' : ''}" data-exam-id="${examId}">
                         <i class="${isFavorite ? 'fas' : 'far'} fa-heart"></i> Favori
@@ -3002,8 +3015,19 @@
             
             const downloadBtns = card.querySelectorAll('.download-btn');
             downloadBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    downloadExam(btn.getAttribute('data-exam-id'), btn.getAttribute('data-type'));
+                btn.addEventListener('click', (e) => {
+                    // L'attribut download force le téléchargement automatique
+                    // On incrémente aussi le compteur de téléchargement
+                    const examRef = db.collection('epreuves').doc(examId);
+                    examRef.update({
+                        downloadCount: firebase.firestore.FieldValue.increment(1)
+                    });
+                    
+                    // Pour le corrigé, on gère la déduction de points
+                    if (btn.textContent.includes('Corrigé')) {
+                        e.preventDefault(); // On empêche le téléchargement immédiat
+                        handleCorrigeAccess(examId, exam, 'download');
+                    }
                 });
             });
             
@@ -4094,7 +4118,7 @@
                         exam.nom_epreuve.substring(0, 20) + '...' : exam.nom_epreuve;
                     examLabels.push(shortName);
                     examDataPoints.push(exam.downloadCount || 0);
-                );
+                });
 
                 // Rendu Graphique Épreuves (Bar)
                 const examsCtx = document.getElementById('exams-chart');
@@ -4244,19 +4268,6 @@
                 clearTimeout(timeout);
                 timeout = setTimeout(later, wait);
             };
-        }
-
-        // Service Worker pour PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js')
-                .then(function(registration) {
-                    console.log('Service Worker enregistré avec succès:', registration);
-                })
-                .catch(function(error) {
-                    console.log("Échec de l'enregistrement du Service Worker:", error);
-                });
-            });
         }
 
         // Ajouter des styles CSS pour les animations de notification
