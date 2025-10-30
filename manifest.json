@@ -2,7 +2,7 @@
   "name": "HosBac",
   "short_name": "HosBac",
   "description": "Plateforme éducative collaborative pour réussir ensemble",
-  "start_url": "/",
+  "start_url": "/HosBac-nouveau-/",
   "display": "standalone",
   "background_color": "#1e3a8a",
   "theme_color": "#1e3a8a",
