@@ -1981,7 +1981,7 @@
     </div>
 
     <audio id="notification-sound" preload="auto">
-        <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_5dfadf2a3f.mp3" type="audio/mp3">
+        <source src="https://assets.mixkit.co/sfx/preview/mixkit-alert-quick-chime-766.mp3" type="audio/mp3">
     </audio>
 
     <script>
@@ -2065,10 +2065,10 @@
         const urlParams = new URLSearchParams(window.location.search);
         const sharedExamId = urlParams.get('exam');
 
-        // Service Worker pour PWA
+        // Service Worker pour PWA - CORRECTION 3: Chemin corrigé
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('/HosBac-nouveau-/sw.js')
                     .then(function(registration) {
                         console.log('Service Worker enregistré avec succès:', registration);
                     })
@@ -2236,7 +2236,9 @@
                     .catch(error => {
                         // Erreur de connexion
                         console.error('Erreur de connexion:', error);
-                        if (error.code === 'auth/wrong-password') {
+                        if (error.code === 'auth/invalid-login-credentials') {
+                            showNotification('Email ou mot de passe incorrect', 'error');
+                        } else if (error.code === 'auth/wrong-password') {
                             showNotification('Mot de passe incorrect', 'error');
                         } else {
                             showNotification('Erreur de connexion', 'error');
@@ -2592,13 +2594,13 @@
             }, 300));
         });
 
-        // Démarrer l'écoute des notifications en temps réel
+        // CORRECTION 2: Démarrer l'écoute des notifications en temps réel avec la nouvelle structure
         function startNotificationListener() {
             if (!currentUser) return;
             
-            notificationListener = db.collection('notifications')
-                .where('userId', '==', currentUser.uid)
-                .orderBy('createdAt', 'desc')
+            notificationListener = db.collection('users').doc(currentUser.uid)
+                .collection('notifications')
+                .where('read', '==', false)
                 .onSnapshot(snapshot => {
                     snapshot.docChanges().forEach(change => {
                         if (change.type === 'added') {
@@ -2759,6 +2761,7 @@
             return card;
         }
 
+        // CORRECTION 2: Fonction toggleAnnouncementLike avec la nouvelle structure de notifications
         function toggleAnnouncementLike(announcementId, button) {
             if (!userData) return;
             
@@ -2789,7 +2792,7 @@
                 
                 showNotification('Annonce likée', 'success');
                 
-                // CORRECTION 5: Notification à l'admin si l'utilisateur n'est pas admin
+                // CORRECTION 2: Notification à l'admin si l'utilisateur n'est pas admin - Structure corrigée
                 if (!isAdmin) {
                     // Récupérer l'ID de l'admin (mickaelpcs14@gmail.com)
                     db.collection('users')
@@ -2800,9 +2803,8 @@
                                 const adminDoc = querySnapshot.docs[0];
                                 const adminId = adminDoc.id;
                                 
-                                // Créer la notification pour l'admin
-                                return db.collection('notifications').add({
-                                    userId: adminId,
+                                // Créer la notification pour l'admin avec la nouvelle structure
+                                return db.collection('users').doc(adminId).collection('notifications').add({
                                     type: 'announcement_like',
                                     message: `${userData.prenom} ${userData.nom} a aimé votre annonce "${announcement.title}"`,
                                     announcementId: announcementId,
@@ -3056,7 +3058,7 @@
             return card;
         }
 
-        // CORRECTION 2: Fonction complète pour gérer l'ajout aux favoris
+        // CORRECTION 2: Fonction complète pour gérer l'ajout aux favoris avec la nouvelle structure de notifications
         async function handleAddToFavorites(epreuveId, auteurId, button) {
             if (!userData) return;
             
@@ -3092,9 +3094,8 @@
                         if (examDoc.exists) {
                             const exam = examDoc.data();
                             
-                            // Créer la notification pour l'auteur
-                            await db.collection('notifications').add({
-                                userId: auteurId,
+                            // CORRECTION 2: Créer la notification pour l'auteur avec la nouvelle structure
+                            await db.collection('users').doc(auteurId).collection('notifications').add({
                                 type: 'favorite',
                                 message: `${userData.prenom} ${userData.nom} a ajouté votre épreuve "${exam.nom_epreuve}" à ses favoris`,
                                 examId: epreuveId,
@@ -3215,9 +3216,8 @@
                             return db.collection('users').doc(exam.auteurId).update({
                                 points: firebase.firestore.FieldValue.increment(2)
                             }).then(() => {
-                                // Notification pour l'auteur
-                                return db.collection('notifications').add({
-                                    userId: exam.auteurId,
+                                // CORRECTION 2: Notification pour l'auteur avec la nouvelle structure
+                                return db.collection('users').doc(exam.auteurId).collection('notifications').add({
                                     type: 'points_received',
                                     message: `Vous avez reçu +2 points de ${userData.prenom} ${userData.nom} pour le ${action} de votre corrigé`,
                                     examId: examId,
@@ -3406,15 +3406,15 @@
                 });
         }
 
+        // CORRECTION 2: Fonction sendTransfer avec la nouvelle structure de notifications
         function sendTransfer(examId, recipientId) {
             db.collection('epreuves').doc(examId).get()
                 .then(doc => {
                     if (doc.exists) {
                         const exam = doc.data();
                         
-                        // Créer une notification pour le destinataire
-                        return db.collection('notifications').add({
-                            userId: recipientId,
+                        // CORRECTION 2: Créer une notification pour le destinataire avec la nouvelle structure
+                        return db.collection('users').doc(recipientId).collection('notifications').add({
                             type: 'transfer',
                             message: `${userData.prenom} ${userData.nom} vous a transféré l'épreuve "${exam.nom_epreuve}"`,
                             examId: examId,
@@ -3578,6 +3578,7 @@
                 });
         }
 
+        // CORRECTION 2: Fonction notifyAdminsAboutPendingExam avec la nouvelle structure de notifications
         function notifyAdminsAboutPendingExam() {
             // Récupérer tous les administrateurs
             db.collection('users')
@@ -3586,9 +3587,8 @@
                 .then(querySnapshot => {
                     querySnapshot.forEach(doc => {
                         const admin = doc.data();
-                        // Créer une notification pour chaque admin
-                        db.collection('notifications').add({
-                            userId: doc.id,
+                        // CORRECTION 2: Créer une notification pour chaque admin avec la nouvelle structure
+                        db.collection('users').doc(doc.id).collection('notifications').add({
                             type: 'pending_exam',
                             message: `Une nouvelle épreuve est en attente d'approbation`,
                             read: false,
@@ -3601,12 +3601,13 @@
                 });
         }
 
+        // CORRECTION 2: Fonction loadNotifications avec la nouvelle structure
         function loadNotifications() {
             const notificationsContainer = document.getElementById('notifications-list');
             notificationsContainer.innerHTML = '<p>Chargement des notifications...</p>';
             
-            db.collection('notifications')
-                .where('userId', '==', currentUser.uid)
+            db.collection('users').doc(currentUser.uid)
+                .collection('notifications')
                 .orderBy('createdAt', 'desc')
                 .limit(50)
                 .get()
@@ -3660,14 +3661,14 @@
                         // Gestionnaire pour le clic sur la notification
                         if (notification.examId) {
                             notificationElement.addEventListener('click', () => {
-                                db.collection('notifications').doc(doc.id).update({
+                                db.collection('users').doc(currentUser.uid).collection('notifications').doc(doc.id).update({
                                     read: true
                                 });
                                 switchView('exams');
                             });
                         } else {
                             notificationElement.addEventListener('click', () => {
-                                db.collection('notifications').doc(doc.id).update({
+                                db.collection('users').doc(currentUser.uid).collection('notifications').doc(doc.id).update({
                                     read: true
                                 });
                             });
@@ -3682,8 +3683,9 @@
                 });
         }
 
+        // CORRECTION 2: Fonction deleteNotification avec la nouvelle structure
         function deleteNotification(notificationId) {
-            db.collection('notifications').doc(notificationId).delete()
+            db.collection('users').doc(currentUser.uid).collection('notifications').doc(notificationId).delete()
                 .then(() => {
                     showNotification('Notification supprimée', 'success');
                     loadNotifications();
@@ -3695,18 +3697,18 @@
                 });
         }
 
+        // CORRECTION 2: Fonction deleteAllNotifications avec la nouvelle structure
         function deleteAllNotifications() {
             if (!confirm('Êtes-vous sûr de vouloir supprimer toutes vos notifications ?')) {
                 return;
             }
             
-            db.collection('notifications')
-                .where('userId', '==', currentUser.uid)
+            db.collection('users').doc(currentUser.uid).collection('notifications')
                 .get()
                 .then(querySnapshot => {
                     const deletePromises = [];
                     querySnapshot.forEach(doc => {
-                        deletePromises.push(db.collection('notifications').doc(doc.id).delete());
+                        deletePromises.push(db.collection('users').doc(currentUser.uid).collection('notifications').doc(doc.id).delete());
                     });
                     return Promise.all(deletePromises);
                 })
@@ -3721,11 +3723,11 @@
                 });
         }
 
+        // CORRECTION 2: Fonction updateNotificationBadge avec la nouvelle structure
         function updateNotificationBadge() {
             if (!currentUser) return;
             
-            db.collection('notifications')
-                .where('userId', '==', currentUser.uid)
+            db.collection('users').doc(currentUser.uid).collection('notifications')
                 .where('read', '==', false)
                 .get()
                 .then(querySnapshot => {
@@ -3782,7 +3784,7 @@
                         document.getElementById('edit-prenom').value = userData.prenom || '';
                         document.getElementById('edit-classe').value = userData.classe || '';
                         
-                        // CORRECTION 4: Mettre à jour le message d'accueil
+                        // Mettre à jour le message d'accueil
                         if (welcomeMessage && welcomeSubtitle) {
                             welcomeMessage.textContent = `Bienvenue sur HosBac, ${userData.prenom || 'Utilisateur'} !`;
                             welcomeSubtitle.textContent = 'Prêt à trouver la bonne épreuve ?';
@@ -3827,7 +3829,7 @@
             });
         }
 
-        // CORRECTION 2: Fonction améliorée pour charger les favoris
+        // Fonction améliorée pour charger les favoris
         function loadFavorites() {
             const favoritesContainer = document.getElementById('favorites-list');
             favoritesContainer.innerHTML = '<p>Chargement des favoris...</p>';
@@ -4037,10 +4039,10 @@
                 });
         }
         
-        // CORRECTION 1: Fonction améliorée pour les graphiques admin
+        // CORRECTION 4: Fonction améliorée pour les graphiques admin avec gestion d'erreur
         async function renderAdminCharts() {
             try {
-                // CORRECTION 1: Graphique Utilisateurs - Récupération des données corrigée
+                // Graphique Utilisateurs - Récupération des données corrigée
                 const usersSnapshot = await db.collection('users').get();
                 const userCountsByDate = {};
                 const today = new Date();
@@ -4102,71 +4104,95 @@
                     });
                 }
 
-                // CORRECTION 1: Graphique Épreuves - Requête corrigée
-                const examsSnapshot = await db.collection('epreuves')
-                                            .where('status', '==', 'approved')
-                                            .orderBy('downloadCount', 'desc')
-                                            .limit(5)
-                                            .get();
-                                            
-                const examLabels = [];
-                const examDataPoints = [];
-                
-                examsSnapshot.forEach(doc => {
-                    const exam = doc.data();
-                    const shortName = exam.nom_epreuve.length > 20 ? 
-                        exam.nom_epreuve.substring(0, 20) + '...' : exam.nom_epreuve;
-                    examLabels.push(shortName);
-                    examDataPoints.push(exam.downloadCount || 0);
-                });
+                // CORRECTION 4: Graphique Épreuves - Gestion d'erreur améliorée
+                try {
+                    const examsSnapshot = await db.collection('epreuves')
+                                                .where('status', '==', 'approved')
+                                                .orderBy('downloadCount', 'desc')
+                                                .limit(5)
+                                                .get();
+                                                
+                    const examLabels = [];
+                    const examDataPoints = [];
+                    
+                    examsSnapshot.forEach(doc => {
+                        const exam = doc.data();
+                        const shortName = exam.nom_epreuve.length > 20 ? 
+                            exam.nom_epreuve.substring(0, 20) + '...' : exam.nom_epreuve;
+                        examLabels.push(shortName);
+                        examDataPoints.push(exam.downloadCount || 0);
+                    });
 
-                // Rendu Graphique Épreuves (Bar)
-                const examsCtx = document.getElementById('exams-chart');
-                if (examsCtx) {
-                    new Chart(examsCtx, {
-                        type: 'bar',
-                        data: {
-                            labels: examLabels,
-                            datasets: [{
-                                label: 'Téléchargements',
-                                data: examDataPoints,
-                                backgroundColor: 'var(--secondary-blue)',
-                            }]
-                        },
-                        options: {
-                            indexAxis: 'y',
-                            responsive: true,
-                            plugins: {
-                                legend: {
-                                    display: false
+                    // Rendu Graphique Épreuves (Bar)
+                    const examsCtx = document.getElementById('exams-chart');
+                    if (examsCtx) {
+                        new Chart(examsCtx, {
+                            type: 'bar',
+                            data: {
+                                labels: examLabels,
+                                datasets: [{
+                                    label: 'Téléchargements',
+                                    data: examDataPoints,
+                                    backgroundColor: 'var(--secondary-blue)',
+                                }]
+                            },
+                            options: {
+                                indexAxis: 'y',
+                                responsive: true,
+                                plugins: {
+                                    legend: {
+                                        display: false
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
+                    }
+                } catch (chartError) {
+                    console.error("Erreur lors de la génération du graphique épreuves:", chartError);
+                    const examsChartContainer = document.getElementById('exams-chart');
+                    if (examsChartContainer) {
+                        examsChartContainer.parentElement.innerHTML = `
+                            <p>Erreur chargement graphique épreuves.</p>
+                            <p><small>Cette erreur est normale et est causée par un index composite manquant dans Firestore.</small></p>
+                            <p><small>Pour résoudre ce problème :</small></p>
+                            <ol style="text-align: left; font-size: 0.8rem;">
+                                <li>Allez sur la page /admin</li>
+                                <li>Ouvrez la console F12 (Inspecteur)</li>
+                                <li>Cliquez sur le lien d'erreur dans la console pour créer automatiquement l'index</li>
+                            </ol>
+                        `;
+                    }
                 }
 
             } catch (error) {
                 console.error("Erreur lors de la génération des graphiques:", error);
-                // CORRECTION 1: Message d'erreur plus informatif
+                // Message d'erreur plus informatif
                 const usersChartContainer = document.getElementById('users-chart');
                 const examsChartContainer = document.getElementById('exams-chart');
                 
                 if (usersChartContainer) {
                     usersChartContainer.parentElement.innerHTML = `
                         <p>Erreur chargement graphique utilisateurs.</p>
-                        <p><small>Si le problème persiste, vérifiez les index Firestore.</small></p>
+                        <p><small>Si le problème persiste, vérifiez votre connexion.</small></p>
                     `;
                 }
                 
                 if (examsChartContainer) {
                     examsChartContainer.parentElement.innerHTML = `
                         <p>Erreur chargement graphique épreuves.</p>
-                        <p><small>Si le problème persiste, vérifiez les index Firestore.</small></p>
+                        <p><small>Cette erreur est normale et est causée par un index composite manquant dans Firestore.</small></p>
+                        <p><small>Pour résoudre ce problème :</small></p>
+                        <ol style="text-align: left; font-size: 0.8rem;">
+                            <li>Allez sur la page /admin</li>
+                            <li>Ouvrez la console F12 (Inspecteur)</li>
+                            <li>Cliquez sur le lien d'erreur dans la console pour créer automatiquement l'index</li>
+                        </ol>
                     `;
                 }
             }
         }
 
+        // CORRECTION 2: Fonction approveExam avec la nouvelle structure de notifications
         function approveExam(examId, authorId, points) {
             db.collection('epreuves').doc(examId).update({
                 status: 'approved'
@@ -4175,8 +4201,8 @@
                 return assignPointsAfterApproval(authorId, points);
             })
             .then(() => {
-                return db.collection('notifications').add({
-                    userId: authorId,
+                // CORRECTION 2: Notification avec la nouvelle structure
+                return db.collection('users').doc(authorId).collection('notifications').add({
                     type: 'approval',
                     message: `Votre épreuve a été approuvée ! Vous avez reçu ${points} points ${points === 4 ? '(2 pour le sujet + 2 pour le corrigé)' : '(2 pour le sujet)'}.`,
                     examId: examId,
@@ -4201,11 +4227,12 @@
             });
         }
 
+        // CORRECTION 2: Fonction rejectExam avec la nouvelle structure de notifications
         function rejectExam(examId, authorId) {
             db.collection('epreuves').doc(examId).delete()
             .then(() => {
-                return db.collection('notifications').add({
-                    userId: authorId,
+                // CORRECTION 2: Notification avec la nouvelle structure
+                return db.collection('users').doc(authorId).collection('notifications').add({
                     type: 'submission',
                     message: 'Votre épreuve a été rejetée.',
                     read: false,
